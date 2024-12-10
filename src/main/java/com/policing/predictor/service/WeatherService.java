@@ -1,5 +1,15 @@
-package org.example.service;
+package com.policing.predictor.service;
 
+import com.policing.predictor.model.WeatherData;
+import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.stereotype.Service;
+import org.springframework.web.reactive.function.client.WebClient;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Scheduled;
+import reactor.core.publisher.Mono;
+import java.time.LocalDateTime;
 @Service
 @Slf4j
 public class WeatherService {
