@@ -93,7 +93,7 @@ except FileNotFoundError:
     long_description = "A weather service using Kafka and OpenMeteo API"
 
 setup(
-    name="weather_service",
+    name="weather_service_v1",
     version="0.1.0",
     description="A weather service using Kafka and OpenMeteo API",
     long_description=long_description,
@@ -153,7 +153,7 @@ IGNORE_DIRS = {
     '.git',
     '.idea',
     '.vscode',
-    'weather_service.egg-info',
+    'weather_service_v1.egg-info',
     '.pytest_cache',
     'scripts'
 }
@@ -242,7 +242,7 @@ def combine_files(directory_path, output_file='combined_output.txt'):
 # Example usage
 if __name__ == "__main__":
     # Get directory path from user
-    dir_path = "/Users/sashank/Downloads/docs/courseFall24/BigData/project/weather_service"
+    dir_path = "/Users/sashank/Downloads/docs/courseFall24/BigData/project/predictive_policing_system/weather_service"
     combine_files(dir_path)
 
 ==================================================
@@ -274,13 +274,137 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
 
 ==================================================
+Content from: weather_service.egg-info/PKG-INFO
+==================================================
+
+Metadata-Version: 2.1
+Name: weather_service
+Version: 0.1.0
+Summary: A weather service using Kafka and OpenMeteo API
+Author: Your Name
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: kafka-python>=2.0.2
+Requires-Dist: python-dotenv>=1.0.0
+Requires-Dist: requests>=2.31.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.4.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.1.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: pylint>=2.17.0; extra == "dev"
+Requires-Dist: mypy>=1.5.0; extra == "dev"
+
+# Weather Service
+
+A weather service that uses Kafka to process weather data requests from the Open-Meteo API.
+
+## Installation
+
+```bash
+# Create and activate virtual environment
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Install package
+pip install -e ".[dev]"
+```
+
+## Usage
+
+1. Start Kafka using Docker:
+```bash
+docker-compose up -d
+```
+
+2. Run the consumer:
+```bash
+python scripts/start_consumer.py
+```
+
+3. In another terminal, run the producer:
+```bash
+python scripts/start_producer.py
+```
+
+## Configuration
+
+Configuration can be set via environment variables in `.env` file:
+- KAFKA_BOOTSTRAP_SERVERS: Kafka server address (default: localhost:9092)
+- WEATHER_API_BASE_URL: OpenMeteo API URL
+- LOG_LEVEL: Logging level (default: INFO)
+
+
+==================================================
+Content from: weather_service.egg-info/SOURCES.txt
+==================================================
+
+README.md
+setup.py
+weather_service/__init__.py
+weather_service/config.py
+weather_service/exceptions.py
+weather_service/logger.py
+weather_service.egg-info/PKG-INFO
+weather_service.egg-info/SOURCES.txt
+weather_service.egg-info/dependency_links.txt
+weather_service.egg-info/entry_points.txt
+weather_service.egg-info/requires.txt
+weather_service.egg-info/top_level.txt
+weather_service/api/__init__.py
+weather_service/api/weather.py
+weather_service/kafka/__init__.py
+weather_service/kafka/consumer.py
+weather_service/kafka/producer.py
+weather_service/utils/__init__.py
+weather_service/utils/time.py
+
+==================================================
+Content from: weather_service.egg-info/entry_points.txt
+==================================================
+
+[console_scripts]
+weather-consumer = scripts.start_consumer:main
+weather-producer = scripts.start_producer:main
+
+
+==================================================
+Content from: weather_service.egg-info/requires.txt
+==================================================
+
+kafka-python>=2.0.2
+python-dotenv>=1.0.0
+requests>=2.31.0
+
+[dev]
+pytest>=7.4.0
+pytest-cov>=4.1.0
+black>=23.0.0
+pylint>=2.17.0
+mypy>=1.5.0
+
+
+==================================================
+Content from: weather_service.egg-info/top_level.txt
+==================================================
+
+weather_service
+
+
+==================================================
+Content from: weather_service.egg-info/dependency_links.txt
+==================================================
+
+
+
+
+==================================================
 Content from: test_weather_service.py
 ==================================================
 
 # test_weather_service.py
 
-from weather_service.kafka.producer import WeatherProducer
-from weather_service.logger import setup_logger
+from weather_service_v1.kafka.producer import WeatherProducer
+from weather_service_v1 import setup_logger
 import time
 
 logger = setup_logger(__name__)
@@ -341,97 +465,200 @@ if __name__ == "__main__":
     test_weather_service()
 
 ==================================================
-Content from: weather_service/config.py
+Content from: weather_service/worker.py
 ==================================================
 
-# weather_service/config.py
+from kafka import KafkaConsumer, KafkaProducer
+import json
+import requests
+import logging
 
-import os
-from dotenv import load_dotenv
+# Set up logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
-load_dotenv()
 
-class Config:
-    KAFKA_BOOTSTRAP_SERVERS = os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'localhost:9092')
-    WEATHER_API_BASE_URL = os.getenv('WEATHER_API_BASE_URL', 'https://api.open-meteo.com/v1/forecast')
-    KAFKA_WEATHER_REQUEST_TOPIC = os.getenv('KAFKA_WEATHER_REQUEST_TOPIC', 'weather_requests')
-    KAFKA_WEATHER_RESULT_TOPIC = os.getenv('KAFKA_WEATHER_RESULT_TOPIC', 'weather_results')
-    LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
+class WeatherWorker:
+    def __init__(self, kafka_server='localhost:9092'):
+        self.consumer = KafkaConsumer(
+            'weather_requests',
+            bootstrap_servers=[kafka_server],
+            value_deserializer=lambda x: json.loads(x.decode('utf-8')),
+            group_id='weather_workers'
+        )
+
+        self.producer = KafkaProducer(
+            bootstrap_servers=[kafka_server],
+            value_serializer=lambda v: json.dumps(v).encode('utf-8')
+        )
+
+    def fetch_weather(self, latitude: float, longitude: float, date: str, hour: int) -> dict:
+        url = (
+            f"https://api.open-meteo.com/v1/forecast?"
+            f"latitude={latitude}&longitude={longitude}"
+            f"&hourly=temperature_2m,relative_humidity_2m,rain,snowfall,snow_depth,"
+            f"cloud_cover,wind_speed_10m,wind_direction_10m"
+            f"&start_date={date}&end_date={date}"
+        )
+
+        response = requests.get(url)
+        data = response.json()
+
+        time_str = f"{date}T{hour:02d}:00"
+        hour_index = data['hourly']['time'].index(time_str)
+
+        return {
+            'temperature': data['hourly']['temperature_2m'][hour_index],
+            'humidity': data['hourly']['relative_humidity_2m'][hour_index],
+            'rain': data['hourly']['rain'][hour_index],
+            'wind_speed': data['hourly']['wind_speed_10m'][hour_index],
+            'wind_direction': data['hourly']['wind_direction_10m'][hour_index]
+        }
+
+    def start(self):
+        logger.info("Weather worker started...")
+        try:
+            for message in self.consumer:
+                data = message.value
+                request_id = data.get('request_id')
+                try:
+                    result = self.fetch_weather(
+                        data['latitude'],
+                        data['longitude'],
+                        data['date'],
+                        data['hour']
+                    )
+                    result['request_id'] = request_id
+                    self.producer.send('weather_results', result)
+
+                except Exception as e:
+                    error_msg = {'error': str(e), 'request_id': request_id}
+                    self.producer.send('weather_results', error_msg)
+                self.producer.flush()
+        finally:
+            self.close()
+
+    def close(self):
+        self.consumer.close()
+        self.producer.close()
+
+
+if __name__ == "__main__":
+    worker = WeatherWorker()
+    worker.start()
+
+==================================================
+Content from: weather_service/service.py
+==================================================
+
+# weather_service/service.py
+
+from kafka import KafkaProducer, KafkaConsumer
+import json
+import uuid
+import time
+import logging
+from weather_service.utils import preprocess_time
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+class WeatherService:
+    def __init__(self, kafka_server='localhost:9092'):
+        self.producer = KafkaProducer(
+            bootstrap_servers=[kafka_server],
+            value_serializer=lambda v: json.dumps(v).encode('utf-8')
+        )
+
+        self.consumer = KafkaConsumer(
+            'weather_results',
+            bootstrap_servers=[kafka_server],
+            value_deserializer=lambda x: json.loads(x.decode('utf-8')),
+            auto_offset_reset='earliest',
+            group_id=f'weather_client_{uuid.uuid4()}',
+            consumer_timeout_ms=1000
+        )
+
+    def get_weather(self, latitude: float, longitude: float, date: str, time_str: str,
+                   timeout_seconds: int = 30) -> dict:
+        request_id = str(uuid.uuid4())
+        hour = preprocess_time(time_str)
+        message = {
+            'request_id': request_id,
+            'latitude': latitude,
+            'longitude': longitude,
+            'date': date,
+            'hour': hour
+        }
+
+        self.producer.send('weather_requests', message)
+        self.producer.flush()
+
+        start_time = time.time()
+        while time.time() - start_time < timeout_seconds:
+            try:
+                for msg in self.consumer:
+                    logger.info(f"Received message: {msg.value}")
+                    if msg.value.get('request_id') == request_id:
+                        if 'error' in msg.value:
+                            raise Exception(msg.value['error'])
+                        return msg.value
+            except StopIteration:
+                continue
+
+        raise TimeoutError(f"No response received within {timeout_seconds} seconds")
+
+    def close(self):
+        self.producer.close()
+        self.consumer.close()
+
+==================================================
+Content from: weather_service/test_weather.py
+==================================================
+
+from service import WeatherService
+
+
+def main():
+    weather = WeatherService()
+    try:
+        result = weather.get_weather(
+            latitude=40.87922,
+            longitude=-73.86106,
+            date="2024-12-17",
+            time_str="3:45 PM"
+        )
+
+        print("\nWeather Data:")
+        print(f"Temperature: {result['temperature']}°C")
+        print(f"Humidity: {result['humidity']}%")
+        print(f"Rain: {result['rain']} mm")
+        print(f"Wind Speed: {result['wind_speed']} km/h")
+        print(f"Wind Direction: {result['wind_direction']}°")
+
+    finally:
+        weather.close()
+
+
+
+if __name__ == "__main__":
+    main()
 
 ==================================================
 Content from: weather_service/__init__.py
 ==================================================
 
 
-# weather_service/__init__.py
-
-from .kafka import WeatherProducer, WeatherConsumer
-from .api import fetch_weather_data
-from .utils import preprocess_time
-
-__all__ = [
-    'WeatherProducer',
-    'WeatherConsumer',
-    'fetch_weather_data',
-    'preprocess_time'
-]
 
 ==================================================
-Content from: weather_service/logger.py
+Content from: weather_service/utils.py
 ==================================================
-
-# weather_service/logger.py
-
-import logging
-import sys
-from weather_service.config import Config
-
-
-def setup_logger(name):
-    """Configure and return a logger instance"""
-    logger = logging.getLogger(name)
-    logger.setLevel(Config.LOG_LEVEL)
-
-    # Avoid adding handlers if they already exist
-    if not logger.handlers:
-        handler = logging.StreamHandler(sys.stdout)
-        formatter = logging.Formatter(
-            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-        )
-        handler.setFormatter(formatter)
-        logger.addHandler(handler)
-
-    return logger
-
-==================================================
-Content from: weather_service/exceptions.py
-==================================================
-
-
-
-==================================================
-Content from: weather_service/utils/time.py
-==================================================
-
-# weather_service/utils/time.py
 
 from datetime import datetime
-from weather_service.logger import setup_logger
-
-logger = setup_logger(__name__)
 
 
 def preprocess_time(time_str: str) -> int:
-    """
-    Convert time string to nearest hour using round function.
-    Accepts formats like "3:29 pm", "15:45", "3:00 PM", etc.
-
-    Args:
-        time_str (str): Time string in various formats
-
-    Returns:
-        int: Rounded hour in 24-hour format (0-23)
-    """
+    """Convert time string to nearest hour"""
     try:
         # Try parsing with AM/PM
         try:
@@ -452,304 +679,7 @@ def preprocess_time(time_str: str) -> int:
         if rounded_hour == 24:
             rounded_hour = 0
 
-        logger.info(f"Preprocessed time {time_str} to {rounded_hour:02d}:00")
         return rounded_hour
 
     except ValueError as e:
-        logger.error(f"Invalid time format: {time_str}")
-        raise ValueError(
-            "Invalid time format. Please use formats like '3:29 pm', '15:45', or '3:00 PM'"
-        ) from e
-
-==================================================
-Content from: weather_service/utils/__init__.py
-==================================================
-
-# weather_service/utils/__init__.py
-
-from .time import preprocess_time
-
-__all__ = ['preprocess_time']
-
-==================================================
-Content from: weather_service/kafka/__init__.py
-==================================================
-
-# weather_service/kafka/__init__.py
-
-from .producer import WeatherProducer
-from .consumer import WeatherConsumer
-
-__all__ = ['WeatherProducer', 'WeatherConsumer']
-
-==================================================
-Content from: weather_service/kafka/producer.py
-==================================================
-
-# weather_service/kafka/producer.py
-
-from kafka import KafkaProducer, KafkaConsumer
-import json
-import uuid
-import time
-from weather_service.config import Config
-from weather_service.logger import setup_logger
-
-logger = setup_logger(__name__)
-
-
-class WeatherProducer:
-    def __init__(self, bootstrap_servers=None):
-        """Initialize Kafka producer"""
-        if bootstrap_servers is None:
-            bootstrap_servers = [Config.KAFKA_BOOTSTRAP_SERVERS]
-
-        self.producer = KafkaProducer(
-            bootstrap_servers=bootstrap_servers,
-            value_serializer=lambda v: json.dumps(v).encode('utf-8')
-        )
-
-        # Initialize consumer for results
-        self.consumer = KafkaConsumer(
-            Config.KAFKA_WEATHER_RESULT_TOPIC,
-            bootstrap_servers=bootstrap_servers,
-            value_deserializer=lambda x: json.loads(x.decode('utf-8')),
-            auto_offset_reset='latest',
-            group_id=f'weather_client_{uuid.uuid4()}'  # Unique consumer group
-        )
-
-    def get_weather_data(self, latitude: float, longitude: float, date: str, time_str: str,
-                         timeout_seconds: int = 30) -> dict:
-        """
-        Send weather request and wait for result synchronously.
-
-        Args:
-            latitude (float): Location latitude
-            longitude (float): Location longitude
-            date (str): Date in YYYY-MM-DD format
-            time_str (str): Time string (e.g., "3:45 PM")
-            timeout_seconds (int): How long to wait for response
-
-        Returns:
-            dict: Weather data result
-        """
-        # Generate unique request ID
-        request_id = str(uuid.uuid4())
-
-        message = {
-            'request_id': request_id,
-            'latitude': latitude,
-            'longitude': longitude,
-            'date': date,
-            'time': time_str
-        }
-
-        try:
-            # Send request
-            future = self.producer.send(Config.KAFKA_WEATHER_REQUEST_TOPIC, value=message)
-            future.get(timeout=10)  # Wait for message to be sent
-            logger.info(f"Sent weather request: {message}")
-
-            # Wait for matching response
-            start_time = time.time()
-            while time.time() - start_time < timeout_seconds:
-                msg = next(self.consumer, None)
-                if msg is None:
-                    continue
-
-                result = msg.value
-                if result.get('request_id') == request_id:
-                    logger.info("Received matching weather result")
-                    return result
-
-            raise TimeoutError(f"No response received after {timeout_seconds} seconds")
-
-        except Exception as e:
-            logger.error(f"Error in weather request: {e}")
-            raise
-
-    def send_weather_request(self, latitude: float, longitude: float, date: str, time_str: str):
-        """Send weather request to Kafka topic (async version)"""
-        message = {
-            'latitude': latitude,
-            'longitude': longitude,
-            'date': date,
-            'time': time_str
-        }
-
-        try:
-            future = self.producer.send(Config.KAFKA_WEATHER_REQUEST_TOPIC, value=message)
-            future.get(timeout=10)  # Wait for message to be sent
-            logger.info(f"Sent weather request: {message}")
-        except Exception as e:
-            logger.error(f"Error sending message to Kafka: {e}")
-            raise
-
-    def close(self):
-        """Close the producer and consumer connections"""
-        self.producer.close()
-        if hasattr(self, 'consumer'):
-            self.consumer.close()
-
-==================================================
-Content from: weather_service/kafka/consumer.py
-==================================================
-
-# weather_service/kafka/consumer.py
-
-from kafka import KafkaConsumer, KafkaProducer
-import json
-from weather_service.api.weather import fetch_weather_data
-from weather_service.config import Config
-from weather_service.logger import setup_logger
-from weather_service.utils import preprocess_time
-
-logger = setup_logger(__name__)
-
-class WeatherConsumer:
-    def __init__(self, bootstrap_servers=None):
-        """Initialize Kafka consumer"""
-        if bootstrap_servers is None:
-            bootstrap_servers = [Config.KAFKA_BOOTSTRAP_SERVERS]
-
-        self.consumer = KafkaConsumer(
-            Config.KAFKA_WEATHER_REQUEST_TOPIC,
-            bootstrap_servers=bootstrap_servers,
-            value_deserializer=lambda x: json.loads(x.decode('utf-8')),
-            auto_offset_reset='earliest',
-            group_id='weather_group'
-        )
-
-        self.producer = KafkaProducer(
-            bootstrap_servers=bootstrap_servers,
-            value_serializer=lambda v: json.dumps(v).encode('utf-8')
-        )
-
-    def process_message(self, message):
-        """Process a single weather request message"""
-        try:
-            # Extract request parameters
-            request_id = message.get('request_id', 'no-id')  # Get request ID if exists
-            latitude = message['latitude']
-            longitude = message['longitude']
-            date = message['date']
-            time_str = message['time']
-
-            # Get the rounded hour
-            hour = preprocess_time(time_str)
-
-            # Fetch weather data
-            result = fetch_weather_data(latitude, longitude, date, hour)
-
-            # Add request ID to result if it exists
-            if request_id != 'no-id':
-                result['request_id'] = request_id
-
-            # Send result to results topic
-            self.producer.send(Config.KAFKA_WEATHER_RESULT_TOPIC, value=result)
-            logger.info(f"Sent result to {Config.KAFKA_WEATHER_RESULT_TOPIC}")
-
-            return result
-        except Exception as e:
-            logger.error(f"Error processing message: {e}")
-            error_result = {
-                'error': str(e),
-                'request_id': request_id if request_id != 'no-id' else None
-            }
-            self.producer.send(Config.KAFKA_WEATHER_RESULT_TOPIC, value=error_result)
-            return error_result
-
-    def start_consuming(self):
-        """Start consuming messages from Kafka"""
-        logger.info("Starting weather data consumer...")
-        try:
-            for message in self.consumer:
-                logger.info(f"Received message: {message.value}")
-                self.process_message(message.value)
-        except Exception as e:
-            logger.error(f"Error in consumer: {e}")
-        finally:
-            self.close()
-
-    def close(self):
-        """Close consumer and producer connections"""
-        logger.info("Closing consumer connections...")
-        self.consumer.close()
-        self.producer.close()
-
-==================================================
-Content from: weather_service/api/weather.py
-==================================================
-
-# weather_service/api/weather.py
-
-import requests
-from datetime import datetime
-from weather_service.config import Config
-from weather_service.logger import setup_logger
-
-logger = setup_logger(__name__)
-
-
-def fetch_weather_data(latitude: float, longitude: float, date: str, hour: int) -> dict:
-    """
-    Fetch weather data from Open-Meteo API for a specific location and hour.
-
-    Args:
-        latitude (float): Location latitude
-        longitude (float): Location longitude
-        date (str): Date in YYYY-MM-DD format
-        hour (int): Hour in 24-hour format (0-23)
-
-    Returns:
-        dict: Weather data for the specified hour
-    """
-    logger.info(f"Fetching weather data for coordinates: {latitude}, {longitude} on {date} at {hour:02d}:00")
-
-    url = (
-        f"{Config.WEATHER_API_BASE_URL}?"
-        f"latitude={latitude}&longitude={longitude}"
-        f"&hourly=temperature_2m,relative_humidity_2m,rain,snowfall,snow_depth,cloud_cover,wind_speed_10m,wind_direction_10m"
-        f"&start_date={date}&end_date={date}"
-    )
-
-    try:
-        response = requests.get(url)
-        response.raise_for_status()
-        data = response.json()
-
-        time_str = f"{date}T{hour:02d}:00"
-        hour_index = data['hourly']['time'].index(time_str)
-
-        result = {
-            'location_id': 0,
-            'time': time_str,
-            'temperature': data['hourly']['temperature_2m'][hour_index],
-            'relative_humidity': data['hourly']['relative_humidity_2m'][hour_index],
-            'rain (mm)': data['hourly']['rain'][hour_index],
-            'snowfall (cm)': data['hourly']['snowfall'][hour_index],
-            'snow_depth': data['hourly']['snow_depth'][hour_index],
-            'cloud_cover': data['hourly']['cloud_cover'][hour_index],
-            'wind_speed_10m': data['hourly']['wind_speed_10m'][hour_index],
-            'wind_direction_10m (deg)': data['hourly']['wind_direction_10m'][hour_index]
-        }
-
-        logger.info("Successfully fetched weather data")
-        return result
-
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Error fetching data from API: {e}")
-        raise
-    except Exception as e:
-        logger.error(f"Error processing data: {e}")
-        raise
-
-==================================================
-Content from: weather_service/api/__init__.py
-==================================================
-
-# weather_service/api/__init__.py
-
-from .weather import fetch_weather_data
-
-__all__ = ['fetch_weather_data']
+        raise ValueError("Invalid time format. Use '3:29 pm', '15:45', or '3:00 PM'") from e

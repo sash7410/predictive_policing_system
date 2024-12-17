@@ -1,7 +1,7 @@
 # test_weather_service.py
 
 from weather_service_v1.kafka.producer import WeatherProducer
-from weather_service_v1.logger import setup_logger
+from weather_service_v1 import setup_logger
 import time
 
 logger = setup_logger(__name__)
