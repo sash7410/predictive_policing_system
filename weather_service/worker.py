@@ -1,19 +1,19 @@
 import os
 import uuid
-import time  # Correct import
+import time
 from kafka import KafkaConsumer, KafkaProducer
 import json
 import requests
 import logging
+from threading import Lock
 
-# Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 
 class WeatherWorker:
     def __init__(self, kafka_server='localhost:9092'):
-        self.kafka_server = kafka_server  # Store kafka_server
+        self.kafka_server = kafka_server
         self.consumer = KafkaConsumer(
             'weather_requests',
             bootstrap_servers=[kafka_server],
@@ -25,6 +25,19 @@ class WeatherWorker:
             bootstrap_servers=[kafka_server],
             value_serializer=lambda v: json.dumps(v).encode('utf-8')
         )
+
+        # Create a persistent model results consumer
+        self.model_consumer = KafkaConsumer(
+            'model_results',
+            bootstrap_servers=[kafka_server],
+            value_deserializer=lambda x: json.loads(x.decode('utf-8')),
+            auto_offset_reset='earliest',
+            group_id='weather_model_consumer',
+            enable_auto_commit=True
+        )
+
+        self.response_lock = Lock()
+        self.pending_requests = {}
 
     def fetch_weather(self, latitude: float, longitude: float, date: str, hour: int) -> dict:
         """
@@ -60,22 +73,14 @@ class WeatherWorker:
         }
 
     def get_prediction(self, weather_data: dict) -> dict:
-        """
-        Send weather data to model service via Kafka and wait for response.
-        """
+        """Send weather data to model service and wait for response."""
         try:
             request_id = str(uuid.uuid4())
             weather_data['request_id'] = request_id
 
-            # Create a consumer for model results
-            model_consumer = KafkaConsumer(
-                'model_results',
-                bootstrap_servers=[self.kafka_server],
-                value_deserializer=lambda x: json.loads(x.decode('utf-8')),
-                auto_offset_reset='latest',
-                group_id=f'weather_worker_{uuid.uuid4()}',
-                consumer_timeout_ms=1000
-            )
+            # Register the request before sending
+            with self.response_lock:
+                self.pending_requests[request_id] = None
 
             # Send to model_requests topic
             self.producer.send('model_requests', weather_data)
@@ -85,71 +90,88 @@ class WeatherWorker:
             # Wait for response
             start_time = time.time()
             while time.time() - start_time < 30:  # 30 second timeout
-                try:
-                    message_batch = model_consumer.poll(timeout_ms=1000)
-                    for tp, messages in message_batch.items():
-                        for message in messages:
-                            if message.value.get('request_id') == request_id:
-                                model_consumer.close()
-                                return message.value
-                except Exception as e:
-                    logger.error(f"Error polling messages: {e}")
+                with self.response_lock:
+                    if self.pending_requests[request_id] is not None:
+                        result = self.pending_requests[request_id]
+                        del self.pending_requests[request_id]
+                        return result
+                time.sleep(0.1)  # Short sleep to prevent CPU spinning
 
-            model_consumer.close()
-            return {"error": "Timeout waiting for model prediction"}
+            # Cleanup on timeout
+            with self.response_lock:
+                del self.pending_requests[request_id]
+            return {"error": "Timeout waiting for model prediction", "request_id": request_id}
 
         except Exception as e:
             logger.error(f"Error in get_prediction: {e}")
-            return {"error": str(e)}
+            return {"error": str(e), "request_id": request_id}
+
+    def process_model_responses(self):
+        """Background thread to process model responses."""
+        try:
+            while True:
+                message_batch = self.model_consumer.poll(timeout_ms=100)
+                for tp, messages in message_batch.items():
+                    for message in messages:
+                        request_id = message.value.get('request_id')
+                        if request_id:
+                            with self.response_lock:
+                                if request_id in self.pending_requests:
+                                    self.pending_requests[request_id] = message.value
+        except Exception as e:
+            logger.error(f"Error processing model responses: {e}")
 
     def start(self):
-        """
-        Consume weather_requests, fetch weather, send to FastAPI, and publish prediction results.
-        """
+        """Start the weather worker."""
         logger.info("Weather worker started...")
+
+        # Start processing model responses in a separate thread
+        from threading import Thread
+        response_thread = Thread(target=self.process_model_responses, daemon=True)
+        response_thread.start()
+
         try:
             for message in self.consumer:
                 data = message.value
                 request_id = data.get('request_id')
+                logger.info(f"Received request with ID: {request_id}")
 
                 try:
-                    # Fetch weather data
                     weather_data = self.fetch_weather(
                         data['latitude'],
                         data['longitude'],
                         data['date'],
                         data['hour']
                     )
-
                     weather_data['request_id'] = request_id
 
-                    # Get prediction from model service
                     prediction_result = self.get_prediction(weather_data)
+                    prediction_result['request_id'] = request_id
 
-                    # Send the result back
+                    logger.info(f"Prediction result: {prediction_result}")
                     self.producer.send('weather_results', prediction_result)
                     self.producer.flush()
-                    logger.info(f"Sent result: {prediction_result}")
+                    logger.info(f"Sent result for request ID: {request_id}")
 
                 except Exception as e:
                     error_msg = {'error': str(e), 'request_id': request_id}
                     self.producer.send('weather_results', error_msg)
                     self.producer.flush()
-                    logger.error(f"Error processing request: {e}")
+                    logger.error(f"Error processing request {request_id}: {e}")
 
         finally:
             self.close()
 
     def close(self):
-        """
-        Gracefully close Kafka consumer and producer.
-        """
+        """Gracefully close Kafka consumers and producer."""
         self.consumer.close()
+        self.model_consumer.close()
         self.producer.close()
         logger.info("Weather worker shut down.")
 
+
 if __name__ == "__main__":
     kafka_server = os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'localhost:9092')
-    print(f"Connecting to Kafka at: {kafka_server}")  # Debug print
+    print(f"Connecting to Kafka at: {kafka_server}")
     worker = WeatherWorker(kafka_server=kafka_server)
     worker.start()
