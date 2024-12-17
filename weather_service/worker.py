@@ -8,7 +8,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 class WeatherWorker:
-    def __init__(self, kafka_server='localhost:9092', fastapi_url="http://localhost:5001/predict"):
+    def __init__(self, kafka_server='localhost:9092', fastapi_url="http://localhost:5002/predict"):
         self.consumer = KafkaConsumer(
             'weather_requests',
             bootstrap_servers=[kafka_server],
