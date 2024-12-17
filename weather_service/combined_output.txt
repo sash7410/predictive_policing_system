@@ -1,0 +1,755 @@
+
+==================================================
+Content from: .DS_Store
+==================================================
+
+Error reading file .DS_Store: 'utf-8' codec can't decode byte 0x86 in position 23: invalid start byte
+
+==================================================
+Content from: requirements.txt
+==================================================
+
+# API and Data Processing
+requests==2.31.0
+python-dotenv==1.0.0
+pandas==2.1.3
+
+# Kafka
+kafka-python==2.0.2
+
+# Testing
+pytest==7.4.3
+pytest-cov==4.1.0
+
+# Code Quality
+black==23.12.0
+pylint==3.0.3
+mypy==1.7.1
+
+# Logging and Error Handling
+retry-requests==2.0.0
+
+# Development Tools
+setuptools>=65.5.1
+wheel>=0.40.0
+pip>=23.0.1
+
+==================================================
+Content from: README.md
+==================================================
+
+# Weather Service
+
+A weather service that uses Kafka to process weather data requests from the Open-Meteo API.
+
+## Installation
+
+```bash
+# Create and activate virtual environment
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Install package
+pip install -e ".[dev]"
+```
+
+## Usage
+
+1. Start Kafka using Docker:
+```bash
+docker-compose up -d
+```
+
+2. Run the consumer:
+```bash
+python scripts/start_consumer.py
+```
+
+3. In another terminal, run the producer:
+```bash
+python scripts/start_producer.py
+```
+
+## Configuration
+
+Configuration can be set via environment variables in `.env` file:
+- KAFKA_BOOTSTRAP_SERVERS: Kafka server address (default: localhost:9092)
+- WEATHER_API_BASE_URL: OpenMeteo API URL
+- LOG_LEVEL: Logging level (default: INFO)
+
+==================================================
+Content from: setup.py
+==================================================
+
+# setup.py
+
+from setuptools import setup, find_packages
+
+# Read README.md if it exists
+try:
+    with open("README.md", "r", encoding="utf-8") as fh:
+        long_description = fh.read()
+except FileNotFoundError:
+    long_description = "A weather service using Kafka and OpenMeteo API"
+
+setup(
+    name="weather_service",
+    version="0.1.0",
+    description="A weather service using Kafka and OpenMeteo API",
+    long_description=long_description,
+    long_description_content_type="text/markdown",
+    author="Your Name",
+    packages=find_packages(),
+    install_requires=[
+        'kafka-python>=2.0.2',
+        'python-dotenv>=1.0.0',
+        'requests>=2.31.0',
+    ],
+    extras_require={
+        'dev': [
+            'pytest>=7.4.0',
+            'pytest-cov>=4.1.0',
+            'black>=23.0.0',
+            'pylint>=2.17.0',
+            'mypy>=1.5.0',
+        ],
+    },
+    python_requires='>=3.8',
+    entry_points={
+        'console_scripts': [
+            'weather-producer=scripts.start_producer:main',
+            'weather-consumer=scripts.start_consumer:main',
+        ],
+    },
+)
+
+==================================================
+Content from: .env
+==================================================
+
+KAFKA_BOOTSTRAP_SERVERS=localhost:9092
+WEATHER_API_BASE_URL=https://api.open-meteo.com/v1/forecast
+KAFKA_WEATHER_REQUEST_TOPIC=weather_requests
+KAFKA_WEATHER_RESULT_TOPIC=weather_results
+LOG_LEVEL=INFO
+
+
+==================================================
+Content from: combiner.py
+==================================================
+
+import os
+from pathlib import Path
+
+# Define directories to ignore
+IGNORE_DIRS = {
+    '.venv',
+    'venv',
+    'env',
+    'build',
+    'dist',
+    '__pycache__',
+    'node_modules',
+    '.git',
+    '.idea',
+    '.vscode',
+    'weather_service.egg-info',
+    '.pytest_cache',
+    'scripts'
+}
+
+
+def combine_files(directory_path, output_file='combined_output.txt'):
+    """
+    Recursively combines all files in the specified directory and its subdirectories into a single output file,
+    completely skipping ignored directories.
+
+    Args:
+        directory_path (str): Path to the directory containing files to combine
+        output_file (str): Name of the output file (default: 'combined_output.txt')
+    """
+    try:
+        # Convert to Path object for better path handling
+        directory = Path(directory_path)
+
+        # Check if directory exists
+        if not directory.is_dir():
+            raise NotADirectoryError(f"'{directory_path}' is not a valid directory")
+
+        # Track processed files count
+        processed_files = 0
+        skipped_dirs = set()
+
+        # Create or overwrite the output file
+        with open(directory / output_file, 'w', encoding='utf-8') as outfile:
+            # Walk through directory structure manually to have better control
+            for root_path in directory.iterdir():
+                # Skip completely if it's in ignored directories
+                if root_path.is_dir():
+                    if root_path.name in IGNORE_DIRS or any(parent.name in IGNORE_DIRS for parent in root_path.parents):
+                        skipped_dirs.add(root_path.name)
+                        continue
+
+                    # Process files in non-ignored directories
+                    for file_path in root_path.rglob('*'):
+                        if not file_path.is_file() or file_path.name == output_file:
+                            continue
+
+                        # Skip if any parent directory is in ignore list
+                        if any(parent.name in IGNORE_DIRS for parent in file_path.parents):
+                            continue
+
+                        # Process the file
+                        relative_path = file_path.relative_to(directory)
+
+                        # Write filename and path as a header
+                        outfile.write(f"\n{'=' * 50}\n")
+                        outfile.write(f"Content from: {relative_path}\n")
+                        outfile.write(f"{'=' * 50}\n\n")
+
+                        try:
+                            with open(file_path, 'r', encoding='utf-8') as infile:
+                                outfile.write(infile.read())
+                                outfile.write('\n')
+                            processed_files += 1
+                        except Exception as e:
+                            outfile.write(f"Error reading file {relative_path}: {str(e)}\n")
+
+                # Process files in root directory
+                elif root_path.is_file() and root_path.name != output_file:
+                    relative_path = root_path.relative_to(directory)
+
+                    # Write filename and path as a header
+                    outfile.write(f"\n{'=' * 50}\n")
+                    outfile.write(f"Content from: {relative_path}\n")
+                    outfile.write(f"{'=' * 50}\n\n")
+
+                    try:
+                        with open(root_path, 'r', encoding='utf-8') as infile:
+                            outfile.write(infile.read())
+                            outfile.write('\n')
+                        processed_files += 1
+                    except Exception as e:
+                        outfile.write(f"Error reading file {relative_path}: {str(e)}\n")
+
+        print(f"Successfully combined {processed_files} files into {output_file}")
+        print("Completely skipped directories:", ", ".join(sorted(skipped_dirs)))
+
+    except Exception as e:
+        print(f"An error occurred: {str(e)}")
+
+
+# Example usage
+if __name__ == "__main__":
+    # Get directory path from user
+    dir_path = "/Users/sashank/Downloads/docs/courseFall24/BigData/project/weather_service"
+    combine_files(dir_path)
+
+==================================================
+Content from: docker-compose.yml
+==================================================
+
+version: '3'
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+==================================================
+Content from: test_weather_service.py
+==================================================
+
+# test_weather_service.py
+
+from weather_service.kafka.producer import WeatherProducer
+from weather_service.logger import setup_logger
+import time
+
+logger = setup_logger(__name__)
+
+
+def test_weather_service():
+    """Test the weather service with synchronous request-response"""
+    producer = WeatherProducer()
+
+    try:
+        # Test multiple locations and times
+        test_cases = [
+            {
+                'latitude': 40.87922,
+                'longitude': -73.86106,
+                'date': "2024-12-17",
+                'time_str': "3:45 PM",
+                'description': "New York"
+            },
+            {
+                'latitude': 34.0522,
+                'longitude': -118.2437,
+                'date': "2024-12-17",
+                'time_str': "2:30 PM",
+                'description': "Los Angeles"
+            }
+        ]
+
+        for case in test_cases:
+            logger.info(f"\nTesting weather data for {case['description']}:")
+
+            result = producer.get_weather_data(
+                latitude=case['latitude'],
+                longitude=case['longitude'],
+                date=case['date'],
+                time_str=case['time_str']
+            )
+
+            # Print the results
+            logger.info(f"Location: {case['description']}")
+            logger.info(f"Time: {result['time']}")
+            logger.info(f"Temperature: {result['temperature']}°C")
+            logger.info(f"Humidity: {result['relative_humidity']}%")
+            logger.info(f"Wind Speed: {result['wind_speed_10m']} km/h")
+            logger.info(f"Wind Direction: {result['wind_direction_10m (deg)']}°")
+            logger.info("------------------------")
+
+            # Small delay between requests
+            time.sleep(1)
+
+    except Exception as e:
+        logger.error(f"Test failed: {e}")
+    finally:
+        producer.close()
+
+
+if __name__ == "__main__":
+    test_weather_service()
+
+==================================================
+Content from: weather_service/config.py
+==================================================
+
+# weather_service/config.py
+
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+class Config:
+    KAFKA_BOOTSTRAP_SERVERS = os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'localhost:9092')
+    WEATHER_API_BASE_URL = os.getenv('WEATHER_API_BASE_URL', 'https://api.open-meteo.com/v1/forecast')
+    KAFKA_WEATHER_REQUEST_TOPIC = os.getenv('KAFKA_WEATHER_REQUEST_TOPIC', 'weather_requests')
+    KAFKA_WEATHER_RESULT_TOPIC = os.getenv('KAFKA_WEATHER_RESULT_TOPIC', 'weather_results')
+    LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
+
+==================================================
+Content from: weather_service/__init__.py
+==================================================
+
+
+# weather_service/__init__.py
+
+from .kafka import WeatherProducer, WeatherConsumer
+from .api import fetch_weather_data
+from .utils import preprocess_time
+
+__all__ = [
+    'WeatherProducer',
+    'WeatherConsumer',
+    'fetch_weather_data',
+    'preprocess_time'
+]
+
+==================================================
+Content from: weather_service/logger.py
+==================================================
+
+# weather_service/logger.py
+
+import logging
+import sys
+from weather_service.config import Config
+
+
+def setup_logger(name):
+    """Configure and return a logger instance"""
+    logger = logging.getLogger(name)
+    logger.setLevel(Config.LOG_LEVEL)
+
+    # Avoid adding handlers if they already exist
+    if not logger.handlers:
+        handler = logging.StreamHandler(sys.stdout)
+        formatter = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+
+    return logger
+
+==================================================
+Content from: weather_service/exceptions.py
+==================================================
+
+
+
+==================================================
+Content from: weather_service/utils/time.py
+==================================================
+
+# weather_service/utils/time.py
+
+from datetime import datetime
+from weather_service.logger import setup_logger
+
+logger = setup_logger(__name__)
+
+
+def preprocess_time(time_str: str) -> int:
+    """
+    Convert time string to nearest hour using round function.
+    Accepts formats like "3:29 pm", "15:45", "3:00 PM", etc.
+
+    Args:
+        time_str (str): Time string in various formats
+
+    Returns:
+        int: Rounded hour in 24-hour format (0-23)
+    """
+    try:
+        # Try parsing with AM/PM
+        try:
+            dt = datetime.strptime(time_str.strip().lower(), "%I:%M %p")
+        except ValueError:
+            # Try parsing 24-hour format
+            try:
+                dt = datetime.strptime(time_str.strip(), "%H:%M")
+            except ValueError:
+                # Try parsing with AM/PM without space
+                dt = datetime.strptime(time_str.strip().lower(), "%I:%M%p")
+
+        # Convert to decimal hours and round to nearest hour
+        decimal_hour = dt.hour + dt.minute / 60
+        rounded_hour = round(decimal_hour)
+
+        # Handle midnight case
+        if rounded_hour == 24:
+            rounded_hour = 0
+
+        logger.info(f"Preprocessed time {time_str} to {rounded_hour:02d}:00")
+        return rounded_hour
+
+    except ValueError as e:
+        logger.error(f"Invalid time format: {time_str}")
+        raise ValueError(
+            "Invalid time format. Please use formats like '3:29 pm', '15:45', or '3:00 PM'"
+        ) from e
+
+==================================================
+Content from: weather_service/utils/__init__.py
+==================================================
+
+# weather_service/utils/__init__.py
+
+from .time import preprocess_time
+
+__all__ = ['preprocess_time']
+
+==================================================
+Content from: weather_service/kafka/__init__.py
+==================================================
+
+# weather_service/kafka/__init__.py
+
+from .producer import WeatherProducer
+from .consumer import WeatherConsumer
+
+__all__ = ['WeatherProducer', 'WeatherConsumer']
+
+==================================================
+Content from: weather_service/kafka/producer.py
+==================================================
+
+# weather_service/kafka/producer.py
+
+from kafka import KafkaProducer, KafkaConsumer
+import json
+import uuid
+import time
+from weather_service.config import Config
+from weather_service.logger import setup_logger
+
+logger = setup_logger(__name__)
+
+
+class WeatherProducer:
+    def __init__(self, bootstrap_servers=None):
+        """Initialize Kafka producer"""
+        if bootstrap_servers is None:
+            bootstrap_servers = [Config.KAFKA_BOOTSTRAP_SERVERS]
+
+        self.producer = KafkaProducer(
+            bootstrap_servers=bootstrap_servers,
+            value_serializer=lambda v: json.dumps(v).encode('utf-8')
+        )
+
+        # Initialize consumer for results
+        self.consumer = KafkaConsumer(
+            Config.KAFKA_WEATHER_RESULT_TOPIC,
+            bootstrap_servers=bootstrap_servers,
+            value_deserializer=lambda x: json.loads(x.decode('utf-8')),
+            auto_offset_reset='latest',
+            group_id=f'weather_client_{uuid.uuid4()}'  # Unique consumer group
+        )
+
+    def get_weather_data(self, latitude: float, longitude: float, date: str, time_str: str,
+                         timeout_seconds: int = 30) -> dict:
+        """
+        Send weather request and wait for result synchronously.
+
+        Args:
+            latitude (float): Location latitude
+            longitude (float): Location longitude
+            date (str): Date in YYYY-MM-DD format
+            time_str (str): Time string (e.g., "3:45 PM")
+            timeout_seconds (int): How long to wait for response
+
+        Returns:
+            dict: Weather data result
+        """
+        # Generate unique request ID
+        request_id = str(uuid.uuid4())
+
+        message = {
+            'request_id': request_id,
+            'latitude': latitude,
+            'longitude': longitude,
+            'date': date,
+            'time': time_str
+        }
+
+        try:
+            # Send request
+            future = self.producer.send(Config.KAFKA_WEATHER_REQUEST_TOPIC, value=message)
+            future.get(timeout=10)  # Wait for message to be sent
+            logger.info(f"Sent weather request: {message}")
+
+            # Wait for matching response
+            start_time = time.time()
+            while time.time() - start_time < timeout_seconds:
+                msg = next(self.consumer, None)
+                if msg is None:
+                    continue
+
+                result = msg.value
+                if result.get('request_id') == request_id:
+                    logger.info("Received matching weather result")
+                    return result
+
+            raise TimeoutError(f"No response received after {timeout_seconds} seconds")
+
+        except Exception as e:
+            logger.error(f"Error in weather request: {e}")
+            raise
+
+    def send_weather_request(self, latitude: float, longitude: float, date: str, time_str: str):
+        """Send weather request to Kafka topic (async version)"""
+        message = {
+            'latitude': latitude,
+            'longitude': longitude,
+            'date': date,
+            'time': time_str
+        }
+
+        try:
+            future = self.producer.send(Config.KAFKA_WEATHER_REQUEST_TOPIC, value=message)
+            future.get(timeout=10)  # Wait for message to be sent
+            logger.info(f"Sent weather request: {message}")
+        except Exception as e:
+            logger.error(f"Error sending message to Kafka: {e}")
+            raise
+
+    def close(self):
+        """Close the producer and consumer connections"""
+        self.producer.close()
+        if hasattr(self, 'consumer'):
+            self.consumer.close()
+
+==================================================
+Content from: weather_service/kafka/consumer.py
+==================================================
+
+# weather_service/kafka/consumer.py
+
+from kafka import KafkaConsumer, KafkaProducer
+import json
+from weather_service.api.weather import fetch_weather_data
+from weather_service.config import Config
+from weather_service.logger import setup_logger
+from weather_service.utils import preprocess_time
+
+logger = setup_logger(__name__)
+
+class WeatherConsumer:
+    def __init__(self, bootstrap_servers=None):
+        """Initialize Kafka consumer"""
+        if bootstrap_servers is None:
+            bootstrap_servers = [Config.KAFKA_BOOTSTRAP_SERVERS]
+
+        self.consumer = KafkaConsumer(
+            Config.KAFKA_WEATHER_REQUEST_TOPIC,
+            bootstrap_servers=bootstrap_servers,
+            value_deserializer=lambda x: json.loads(x.decode('utf-8')),
+            auto_offset_reset='earliest',
+            group_id='weather_group'
+        )
+
+        self.producer = KafkaProducer(
+            bootstrap_servers=bootstrap_servers,
+            value_serializer=lambda v: json.dumps(v).encode('utf-8')
+        )
+
+    def process_message(self, message):
+        """Process a single weather request message"""
+        try:
+            # Extract request parameters
+            request_id = message.get('request_id', 'no-id')  # Get request ID if exists
+            latitude = message['latitude']
+            longitude = message['longitude']
+            date = message['date']
+            time_str = message['time']
+
+            # Get the rounded hour
+            hour = preprocess_time(time_str)
+
+            # Fetch weather data
+            result = fetch_weather_data(latitude, longitude, date, hour)
+
+            # Add request ID to result if it exists
+            if request_id != 'no-id':
+                result['request_id'] = request_id
+
+            # Send result to results topic
+            self.producer.send(Config.KAFKA_WEATHER_RESULT_TOPIC, value=result)
+            logger.info(f"Sent result to {Config.KAFKA_WEATHER_RESULT_TOPIC}")
+
+            return result
+        except Exception as e:
+            logger.error(f"Error processing message: {e}")
+            error_result = {
+                'error': str(e),
+                'request_id': request_id if request_id != 'no-id' else None
+            }
+            self.producer.send(Config.KAFKA_WEATHER_RESULT_TOPIC, value=error_result)
+            return error_result
+
+    def start_consuming(self):
+        """Start consuming messages from Kafka"""
+        logger.info("Starting weather data consumer...")
+        try:
+            for message in self.consumer:
+                logger.info(f"Received message: {message.value}")
+                self.process_message(message.value)
+        except Exception as e:
+            logger.error(f"Error in consumer: {e}")
+        finally:
+            self.close()
+
+    def close(self):
+        """Close consumer and producer connections"""
+        logger.info("Closing consumer connections...")
+        self.consumer.close()
+        self.producer.close()
+
+==================================================
+Content from: weather_service/api/weather.py
+==================================================
+
+# weather_service/api/weather.py
+
+import requests
+from datetime import datetime
+from weather_service.config import Config
+from weather_service.logger import setup_logger
+
+logger = setup_logger(__name__)
+
+
+def fetch_weather_data(latitude: float, longitude: float, date: str, hour: int) -> dict:
+    """
+    Fetch weather data from Open-Meteo API for a specific location and hour.
+
+    Args:
+        latitude (float): Location latitude
+        longitude (float): Location longitude
+        date (str): Date in YYYY-MM-DD format
+        hour (int): Hour in 24-hour format (0-23)
+
+    Returns:
+        dict: Weather data for the specified hour
+    """
+    logger.info(f"Fetching weather data for coordinates: {latitude}, {longitude} on {date} at {hour:02d}:00")
+
+    url = (
+        f"{Config.WEATHER_API_BASE_URL}?"
+        f"latitude={latitude}&longitude={longitude}"
+        f"&hourly=temperature_2m,relative_humidity_2m,rain,snowfall,snow_depth,cloud_cover,wind_speed_10m,wind_direction_10m"
+        f"&start_date={date}&end_date={date}"
+    )
+
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        data = response.json()
+
+        time_str = f"{date}T{hour:02d}:00"
+        hour_index = data['hourly']['time'].index(time_str)
+
+        result = {
+            'location_id': 0,
+            'time': time_str,
+            'temperature': data['hourly']['temperature_2m'][hour_index],
+            'relative_humidity': data['hourly']['relative_humidity_2m'][hour_index],
+            'rain (mm)': data['hourly']['rain'][hour_index],
+            'snowfall (cm)': data['hourly']['snowfall'][hour_index],
+            'snow_depth': data['hourly']['snow_depth'][hour_index],
+            'cloud_cover': data['hourly']['cloud_cover'][hour_index],
+            'wind_speed_10m': data['hourly']['wind_speed_10m'][hour_index],
+            'wind_direction_10m (deg)': data['hourly']['wind_direction_10m'][hour_index]
+        }
+
+        logger.info("Successfully fetched weather data")
+        return result
+
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Error fetching data from API: {e}")
+        raise
+    except Exception as e:
+        logger.error(f"Error processing data: {e}")
+        raise
+
+==================================================
+Content from: weather_service/api/__init__.py
+==================================================
+
+# weather_service/api/__init__.py
+
+from .weather import fetch_weather_data
+
+__all__ = ['fetch_weather_data']

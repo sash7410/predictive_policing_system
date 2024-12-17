@@ -1,0 +1,81 @@
+# Python Bytecode and Build Artifacts
+__pycache__/
+*.py[cod]
+*.so
+*.pyd
+*.db
+*.sqlite3
+*.egg-info/
+dist/
+build/
+*.egg
+*.log
+*.out
+*.pid
+
+# Virtual Environments
+env/
+venv/
+ENV/
+.venv/
+env.bak/
+venv.bak/
+
+# Flask / FastAPI Specific Files
+instance/
+*.env
+.env.*
+*.ini
+config.json
+secret.json
+local_settings.py
+
+# Logs
+logs/
+*.log
+*.log.*
+
+# Dependencies
+Pipfile
+Pipfile.lock
+poetry.lock
+
+# Testing
+.coverage
+.tox/
+.nox/
+.pytest_cache/
+htmlcov/
+*.cover
+
+# MyPy / Type Checking
+.mypy_cache/
+
+# Linting / Static Analysis
+ruff_cache/
+flake8.log
+
+# IDE / Editor Config Files
+.vscode/
+.idea/
+*.iml
+*.swp
+*.sublime-project
+*.sublime-workspace
+*.code-workspace
+
+# macOS System Files
+.DS_Store
+
+# Other OS-related files
+Thumbs.db
+desktop.ini
+
+# Generated Files
+*.crt
+*.pem
+*.key
+*.cert
+*.csr
+*.lock
+
