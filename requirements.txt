@@ -28,3 +28,4 @@ retry-requests==2.0.0
 setuptools>=65.5.1
 wheel>=0.40.0
 pip>=23.1.0
+flask==3.0.0

@@ -21,3 +21,14 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+  ml_api:
+    build: ./ml_model            # Build Flask API using Dockerfile in 'ml_model'
+    ports:
+      - "5000:5000"              # Expose ML API on port 5000
+    volumes:
+      - ./ml_model:/app          # Mount local 'ml_model' directory into the container
+    environment:
+      - MODEL_PATH=crime_prediction_model
+    depends_on:
+      - kafka                    # Start Kafka before the ML API

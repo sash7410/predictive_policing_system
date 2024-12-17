@@ -13,9 +13,10 @@ IGNORE_DIRS = {
     '.git',
     '.idea',
     '.vscode',
-    'weather_service_v1.egg-info',
+    'weather_service.egg-info',
     '.pytest_cache',
-    'scripts'
+    'scripts',
+    'datasets'
 }
 
 
@@ -102,5 +103,5 @@ def combine_files(directory_path, output_file='combined_output.txt'):
 # Example usage
 if __name__ == "__main__":
     # Get directory path from user
-    dir_path = "/Users/sashank/Downloads/docs/courseFall24/BigData/project/predictive_policing_system/weather_service"
+    dir_path = "/Users/sashank/Downloads/docs/courseFall24/BigData/project/predictive_policing_system"
     combine_files(dir_path)
