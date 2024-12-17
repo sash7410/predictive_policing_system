@@ -20,18 +20,18 @@ services:
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
 
   ml_api:
     build:
       context: .           # Set context to the project root
       dockerfile: ml_model/Dockerfile
-    ports:
-      - "5002:5002"
     environment:
       - MODEL_PATH=crime_prediction_model
     depends_on:
-      kafka:
-        condition: service_started
+      - kafka
+    networks:
+      - app_network
 
   weather_worker:
     build:
@@ -41,5 +41,11 @@ services:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - WEATHER_API_BASE_URL=https://api.open-meteo.com/v1/forecast
     depends_on:
-      kafka:
-        condition: service_started
+      - kafka
+      - ml_api
+    networks:
+      - app_network
+
+networks:
+  app_network:
+    driver: bridge

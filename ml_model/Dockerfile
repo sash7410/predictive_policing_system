@@ -17,15 +17,12 @@ RUN echo "JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java))))" >> /etc/
 ENV PATH="${JAVA_HOME}/bin:${PATH}"
 
 # Copy requirements.txt and install dependencies
-COPY ../requirements.txt .
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the ML model files and API script
 COPY ml_model/serve_model.py .
 COPY ml_model/crime_prediction_model ./crime_prediction_model
 
-# Expose the Flask API port
-EXPOSE 5002
 
-# Run the Flask API
-CMD ["python", "serve_model.py"]
+CMD ["python", "start_model.py"]
