@@ -15,8 +15,12 @@ def main():
         print(f"Temperature: {result['temperature']}°C")
         print(f"Humidity: {result['humidity']}%")
         print(f"Rain: {result['rain']} mm")
+        print(f"Snowfall: {result['snowfall']} cm")
+        print(f"Snow Depth: {result['snow_depth']} cm")
+        print(f"Cloud Cover: {result['cloud_cover']}%")
         print(f"Wind Speed: {result['wind_speed']} km/h")
         print(f"Wind Direction: {result['wind_direction']}°")
+
 
     finally:
         weather.close()
