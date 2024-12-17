@@ -18,7 +18,7 @@ class WeatherService:
         )
 
         self.consumer = KafkaConsumer(
-            'model_results',
+            'weather_results',
             bootstrap_servers=[kafka_server],
             value_deserializer=lambda x: json.loads(x.decode('utf-8')),
             auto_offset_reset='earliest',
