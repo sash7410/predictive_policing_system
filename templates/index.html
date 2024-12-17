@@ -166,18 +166,25 @@
         #result {
             display: none;
             margin-top: 1rem;
-            padding: 1rem;
+            padding: 1.5rem;
             background: #f8f9fa;
             border-radius: 8px;
             border: 1px solid #ddd;
-            white-space: pre-wrap;
-            font-family: monospace;
-            font-size: 0.9rem;
+            font-size: 1.2rem;
             line-height: 1.5;
+            text-align: center;
+            font-weight: 500;
         }
 
         #result.active {
             display: block;
+        }
+
+        .prediction-value {
+            color: #2557a7;
+            font-size: 2rem;
+            font-weight: 600;
+            margin: 0.5rem 0;
         }
 
         /* Responsive adjustments */
@@ -222,7 +229,7 @@
                         <input type="time" id="time-picker" required>
                     </div>
                 </div>
-                <button id="submit-btn" class="submit-btn" disabled>Get Weather Prediction</button>
+                <button id="submit-btn" class="submit-btn" disabled>Get Crime Prediction based on the Weather</button>
                 <div id="loading" class="loading">Processing prediction request...</div>
                 <div id="error" class="error"></div>
                 <div id="result"></div>
@@ -327,8 +334,13 @@
                 }
 
                 if (responseData.success) {
-                    // Format the result nicely
-                    result.textContent = JSON.stringify(responseData.data, null, 2);
+                    // Format the prediction as a percentage
+                    const percentage = (responseData.data.prediction * 100).toFixed(2);
+                    result.innerHTML = `
+                        <div>Predicted Probability</div>
+                        <div class="prediction-value">${percentage}%</div>
+<!--                        <div>Request ID: ${responseData.data.request_id}</div>-->
+                    `;
                     result.classList.add('active');
                 } else {
                     throw new Error(responseData.error || 'Unknown error occurred');

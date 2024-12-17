@@ -50,6 +50,8 @@ class WeatherWorker:
             f"cloud_cover,wind_speed_10m,wind_direction_10m"
             f"&start_date={date}&end_date={date}"
         )
+        print(url)
+        print("lolololol")
 
         response = requests.get(url)
         data = response.json()
@@ -57,7 +59,7 @@ class WeatherWorker:
         time_str = f"{date}T{hour:02d}:00"
         hour_index = data['hourly']['time'].index(time_str)
 
-        return {
+        d_ = {
             'temperature': data['hourly']['temperature_2m'][hour_index],
             'relative_humidity': data['hourly']['relative_humidity_2m'][hour_index],
             'rain': data['hourly']['rain'][hour_index],
@@ -71,6 +73,8 @@ class WeatherWorker:
             'date': date,
             'time': f"{hour:02d}:00"
         }
+        print(d_)
+        return d_
 
     def get_prediction(self, weather_data: dict) -> dict:
         """Send weather data to model service and wait for response."""

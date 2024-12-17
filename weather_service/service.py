@@ -58,23 +58,6 @@ class WeatherService:
 
     def get_weather(self, latitude: float, longitude: float, date: str, time_str: str,
                     timeout_seconds: int = 30) -> dict:
-        """
-        Get weather prediction for a specific location and time.
-
-        Args:
-            latitude: float
-            longitude: float
-            date: str in YYYY-MM-DD format
-            time_str: str in HH:MM format
-            timeout_seconds: int, how long to wait for response
-
-        Returns:
-            dict containing weather prediction
-
-        Raises:
-            TimeoutError: if no response received within timeout
-            Exception: if there's an error in the response
-        """
         request_id = str(uuid.uuid4())
         hour = preprocess_time(time_str)
 
