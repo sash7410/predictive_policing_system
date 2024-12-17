@@ -109,6 +109,6 @@ def predict():
 
 if __name__ == "__main__":
     try:
-        app.run(host="0.0.0.0", port=5001)
+        app.run(host="0.0.0.0", port=5002)
     except Exception as e:
         logger.error(f"Error starting Flask server: {e}")
