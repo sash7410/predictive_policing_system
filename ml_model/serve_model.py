@@ -4,6 +4,8 @@ import os
 import logging
 import atexit
 from pyspark.ml.regression import RandomForestRegressionModel
+from pyspark.sql.functions import sin, cos, col
+from pyspark.ml.feature import VectorAssembler, StandardScaler
 
 
 # Setup logging
@@ -74,8 +76,27 @@ def predict():
             "HOUR": int(hour),
         }
 
+        features = [
+            "sin_day", "cos_day", "sin_hour", "cos_hour",
+            "temperature", "relative_humidity", "rain",
+            "snowfall", "snow_depth", "cloud_cover", "wind_speed_10m", "wind_direction_10m", 
+            "Latitude", "Longitude"
+            ]
+
         # Create DataFrame for model
         input_df = spark.createDataFrame([input_data])
+        input_df = input_df.withColumn("sin_day", sin(2 * 3.14159 * col("DAY_OF_YEAR") / 366))
+        input_df = input_df.withColumn("cos_day", cos(2 * 3.14159 * col("DAY_OF_YEAR") / 366))
+        input_df = input_df.withColumn("sin_hour", sin(2 * 3.14159 * col("HOUR") / 24))
+        input_df = input_df.withColumn("cos_hour", cos(2 * 3.14159 * col("HOUR") / 24))
+
+        assembler = VectorAssembler(inputCols=features, outputCol="features")
+
+        # Standardize the features
+        scaler = StandardScaler(inputCol="features", outputCol="scaled_features", withStd=True, withMean=True)
+
+        input_df = assembler.transform(input_df)
+        input_df = scaler.fit(input_df).transform(input_df)
 
         # Make prediction
         prediction = model.transform(input_df).collect()[0]["prediction"]
