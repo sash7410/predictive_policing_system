@@ -1,4 +1,4 @@
-version: '3'
+version: '3.8'
 services:
   zookeeper:
     image: confluentinc/cp-zookeeper:latest
@@ -18,17 +18,23 @@ services:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
 
   ml_api:
-    build: ./ml_model            # Build Flask API using Dockerfile in 'ml_model'
+    build: ./ml_model
     ports:
-      - "5000:5000"              # Expose ML API on port 5000
-    volumes:
-      - ./ml_model:/app          # Mount local 'ml_model' directory into the container
+      - "5000:5000"
     environment:
       - MODEL_PATH=crime_prediction_model
     depends_on:
-      - kafka                    # Start Kafka before the ML API
+      kafka:
+        condition: service_started
+
+  weather_worker:
+    build: ./weather_service
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - WEATHER_API_BASE_URL=https://api.open-meteo.com/v1/forecast
+    depends_on:
+      kafka:
+        condition: service_healthy

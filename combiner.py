@@ -16,7 +16,8 @@ IGNORE_DIRS = {
     'weather_service.egg-info',
     '.pytest_cache',
     'scripts',
-    'datasets'
+    'datasets',
+    'crime_prediction_model'
 }
 
 
