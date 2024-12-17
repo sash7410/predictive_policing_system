@@ -5,7 +5,7 @@ import json
 import uuid
 import time
 import logging
-from weather_service.utils import preprocess_time
+from utils import preprocess_time
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
