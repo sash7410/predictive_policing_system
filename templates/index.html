@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NYC Weather Prediction Map</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: system-ui, -apple-system, sans-serif;
+        }
+
+        body {
+            background-color: #f0f2f5;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .card-header {
+            padding: 1.5rem;
+            background: #1a1a1a;
+            color: white;
+        }
+
+        .card-header h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .card-body {
+            padding: 1.5rem;
+        }
+
+        #map {
+            height: 400px;
+            width: 100%;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            border: 1px solid #ddd;
+        }
+
+        .input-group {
+            margin-bottom: 1rem;
+            padding: 1rem;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .input-group h2 {
+            margin-bottom: 0.5rem;
+            font-size: 1rem;
+            color: #333;
+            font-weight: 600;
+        }
+
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        input[type="date"],
+        input[type="time"] {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 1rem;
+            background: white;
+        }
+
+        input[type="date"]:focus,
+        input[type="time"]:focus {
+            outline: none;
+            border-color: #2557a7;
+            box-shadow: 0 0 0 2px rgba(37, 87, 167, 0.2);
+        }
+
+        #location-display {
+            font-size: 0.95rem;
+            color: #666;
+            line-height: 1.5;
+            background: white;
+            padding: 0.75rem;
+            border-radius: 6px;
+            border: 1px solid #ddd;
+        }
+
+        .submit-btn {
+            background: #2557a7;
+            color: white;
+            border: none;
+            padding: 1rem;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            transition: all 0.2s ease;
+        }
+
+        .submit-btn:hover:not(:disabled) {
+            background: #1e4b8f;
+            transform: translateY(-1px);
+        }
+
+        .submit-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 1rem;
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin-top: 1rem;
+            color: #2557a7;
+            font-weight: 500;
+        }
+
+        .loading.active {
+            display: block;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .error {
+            display: none;
+            color: #dc3545;
+            padding: 1rem;
+            background: #f8d7da;
+            border: 1px solid #f5c2c7;
+            border-radius: 8px;
+            margin-top: 1rem;
+            font-weight: 500;
+        }
+
+        .error.active {
+            display: block;
+        }
+
+        #result {
+            display: none;
+            margin-top: 1rem;
+            padding: 1rem;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        #result.active {
+            display: block;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+
+            .card-body {
+                padding: 1rem;
+            }
+
+            #map {
+                height: 300px;
+            }
+
+            .controls {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <div class="card-header">
+                <h1>NYC Weather Prediction Map</h1>
+            </div>
+            <div class="card-body">
+                <div id="map"></div>
+                <div class="controls">
+                    <div class="input-group">
+                        <h2>Selected Location</h2>
+                        <div id="location-display">Click on the map to select a location</div>
+                    </div>
+                    <div class="input-group">
+                        <h2>Date</h2>
+                        <input type="date" id="date-picker" required>
+                    </div>
+                    <div class="input-group">
+                        <h2>Time</h2>
+                        <input type="time" id="time-picker" required>
+                    </div>
+                </div>
+                <button id="submit-btn" class="submit-btn" disabled>Get Weather Prediction</button>
+                <div id="loading" class="loading">Processing prediction request...</div>
+                <div id="error" class="error"></div>
+                <div id="result"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+    <script>
+        let selectedLocation = null;
+
+        // Initialize map centered on NYC
+        const map = L.map('map').setView([40.7128, -74.0060], 11);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+        }).addTo(map);
+
+        // Set NYC bounds
+        const nycBounds = L.latLngBounds(
+            [40.477399, -74.259090], // Southwest
+            [40.917577, -73.700272]  // Northeast
+        );
+        map.setMaxBounds(nycBounds);
+        map.setMinZoom(10);
+        map.setMaxZoom(18);
+
+        // Handle map clicks
+        let marker = null;
+        map.on('click', function(e) {
+            const lat = e.latlng.lat.toFixed(5);
+            const lng = e.latlng.lng.toFixed(5);
+
+            if (marker) {
+                map.removeLayer(marker);
+            }
+
+            marker = L.marker([lat, lng]).addTo(map);
+            selectedLocation = { lat, lng };
+
+            document.getElementById('location-display').innerHTML =
+                `Latitude: ${lat}<br>Longitude: ${lng}`;
+            updateSubmitButton();
+        });
+
+        // Set default date and time
+        const now = new Date();
+        document.getElementById('date-picker').value = now.toISOString().split('T')[0];
+        document.getElementById('time-picker').value = now.toTimeString().slice(0, 5);
+
+        function formatTimeToAMPM(time) {
+            const [hours, minutes] = time.split(':');
+            const hour = parseInt(hours);
+            const ampm = hour >= 12 ? 'PM' : 'AM';
+            const hour12 = hour % 12 || 12;
+            return `${hour12}:${minutes} ${ampm}`;
+        }
+
+        function updateSubmitButton() {
+            const date = document.getElementById('date-picker').value;
+            const time = document.getElementById('time-picker').value;
+            document.getElementById('submit-btn').disabled = !selectedLocation || !date || !time;
+        }
+
+        document.getElementById('date-picker').addEventListener('change', updateSubmitButton);
+        document.getElementById('time-picker').addEventListener('change', updateSubmitButton);
+
+        document.getElementById('submit-btn').addEventListener('click', async function() {
+            const button = document.getElementById('submit-btn');
+            const loading = document.getElementById('loading');
+            const error = document.getElementById('error');
+            const result = document.getElementById('result');
+
+            // Reset and show loading state
+            button.disabled = true;
+            loading.classList.add('active');
+            error.classList.remove('active');
+            result.classList.remove('active');
+
+            const date = document.getElementById('date-picker').value;
+            const time = formatTimeToAMPM(document.getElementById('time-picker').value);
+
+            const data = {
+                latitude: parseFloat(selectedLocation.lat),
+                longitude: parseFloat(selectedLocation.lng),
+                date: date,
+                time_str: time
+            };
+
+            try {
+                const response = await fetch('/get_weather', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                const responseData = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(responseData.error || 'Failed to get prediction');
+                }
+
+                if (responseData.success) {
+                    // Format the result nicely
+                    result.textContent = JSON.stringify(responseData.data, null, 2);
+                    result.classList.add('active');
+                } else {
+                    throw new Error(responseData.error || 'Unknown error occurred');
+                }
+            } catch (err) {
+                error.textContent = err.message;
+                error.classList.add('active');
+            } finally {
+                button.disabled = false;
+                loading.classList.remove('active');
+            }
+        });
+    </script>
+</body>
+</html>

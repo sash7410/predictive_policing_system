@@ -1,4 +1,4 @@
-from service import WeatherService
+from weather_service.service import WeatherService
 
 
 def main():

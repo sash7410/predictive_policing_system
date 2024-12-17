@@ -5,7 +5,8 @@ import json
 import uuid
 import time
 import logging
-from utils import preprocess_time
+
+from weather_service.utils import preprocess_time
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -37,6 +38,8 @@ class WeatherService:
             'date': date,
             'hour': hour
         }
+        print(message)
+        print("lol")
 
         self.producer.send('weather_requests', message)
         self.producer.flush()
